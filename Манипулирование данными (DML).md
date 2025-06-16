@@ -217,3 +217,204 @@ SET
     replacement_cost = CEIL(rental_rate*5)
 ```
 
+## Задание 15
+Переместить фильм "**CHINATOWN GLADIATOR**" из категории **New** в категорию **Action**.
+
+```
+UPDATE film_category fc
+
+INNER JOIN film f
+ON fc.film_id = f.film_id
+
+SET
+    category_id = (
+        SELECT category_id 
+        FROM category
+        WHERE name = 'Action'
+    )
+WHERE
+    f.title = "CHINATOWN GLADIATOR";
+```
+
+## Задание 16
+Создайте таблицу `penguins_by_islands` с полями `island` - тип поля текст, первичный ключ и `penguins_count` - тип поля - целое число. \
+Заполните новую таблицу данными на основе таблицы `penguins` так, чтобы столбец `island` - содержал название острова, а `penguins_count` - количество проживающих на нём пингвинов.
+```
+CREATE TABLE penguins_by_islands (
+    island VARCHAR(255) PRIMARY KEY,
+    penguins_count INT
+);
+
+INSERT INTO penguins_by_islands (
+    island, 
+    penguins_count
+)
+    SELECT 
+        island, 
+        COUNT(*) AS penguins_count
+    FROM penguins
+    GROUP BY island
+```
+
+## Задание 17
+Для поддержания актуальности таблицы `penguins_by_islands` (созданной в этом задании) необходимо написать триггер, который срабатывает после добавления строк в таблицу `penguins`. \
+Код триггера должен обновлять количество пингвинов в соответствующей записи результирующей таблицы или создавать новую запись, если пингвин добавлен для острова, которого ещё нет в таблице.
+```
+CREATE TRIGGER tr_penguins_insert
+AFTER INSERT ON penguins
+FOR EACH ROW
+BEGIN
+    DECLARE island_exists INT DEFAULT 0;
+    
+    SELECT COUNT(*) INTO island_exists
+    FROM penguins_by_islands
+    WHERE island = NEW.island;
+
+    IF island_exists = 0 THEN
+        INSERT INTO penguins_by_islands (
+            island, 
+            penguins_count
+        )
+        VALUES (
+            NEW.island, 
+            1
+        );
+    ELSE
+        UPDATE penguins_by_islands
+        SET
+           penguins_count = penguins_count + 1
+        WHERE 
+            island = NEW.island;
+    END IF;
+END
+```
+Вариант для SQLite:
+```
+CREATE TRIGGER tr_penguins_insert
+AFTER INSERT ON penguins
+FOR EACH ROW
+BEGIN
+    UPDATE penguins_by_islands
+    SET
+       penguins_count = penguins_count + 1
+    WHERE 
+        island = NEW.island;
+    
+    INSERT OR IGNORE INTO penguins_by_islands (
+        island, 
+        penguins_count
+    )
+    VALUES (
+        NEW.island, 
+        1
+    );
+END
+```
+
+## Задание 18
+Для поддержания актуальности таблицы `penguins_by_islands` (созданной в этом задании) создайте триггер, который срабатывает после удаления строк из таблицы `penguins` и уменьшает количество пингвинов обитающих на соответствующем острове.
+```
+CREATE TRIGGER tr_penguins_count_delete
+AFTER DELETE ON penguins
+FOR EACH ROW
+
+BEGIN
+    UPDATE penguins_by_islands
+    SET
+        penguins_count = penguins_count - 1
+    WHERE 
+        island = OLD.island;
+END
+```
+
+## Задание 19
+Удалите все записи о пингвинах с острова **Biscoe** из таблицы `little_penguins`.
+```
+DELETE FROM little_penguins
+WHERE
+    island = 'Biscoe'
+```
+
+## Задание 20
+Из таблицы `EMPLOYEE_PROJECT` удалите все записи о сотрудниках, работающих над проектом **Marketing project 3**.
+```
+DELETE e 
+FROM EMPLOYEE_PROJECT e
+
+INNER JOIN PROJECT p
+ON e.PROJ_ID = p.PROJ_ID
+
+WHERE
+    p.PROJ_NAME = 'Marketing project 3'
+```
+
+Для Firebind:
+```
+DELETE FROM EMPLOYEE_PROJECT e
+WHERE EXISTS (
+    SELECT 1 
+    FROM PROJECT p
+
+    WHERE
+        p.PROJ_NAME = 'Marketing project 3'
+        AND e.PROJ_ID = p.PROJ_ID
+)
+```
+
+## Задание 21
+Из таблицы `film` удалите записи о фильмах, которых нет в таблице `inventory`.
+```
+DELETE f FROM film f
+
+LEFT JOIN inventory i
+ON f.film_id = i.film_id
+
+WHERE i.film_id IS NULL
+```
+
+## Задание 22
+Переименуйте таблицу `little_penguins` в `small_penguins`.
+```
+ALTER TABLE little_penguins RENAME TO small_penguins
+```
+
+## Задание 23
+На основе таблицы `penguins` создайте представление `penguins_averages` с полями `species` - вид пингвинов, `sex` - пол пингвинов, `penguins_count` - количество особей и полями `avg_bill_length_mm`, `avg_bill_depth_mm`, `avg_flipper_length_mm` и `avg_body_mass_g` - представляющими средние значения в разрезе вида и пола животных.
+```
+CREATE VIEW penguins_averages AS
+    SELECT 
+        species,
+        sex,
+        COUNT(*) AS penguins_count,
+        AVG(bill_length_mm) AS avg_bill_length_mm,
+        AVG(bill_depth_mm) AS avg_bill_depth_mm,
+        AVG(flipper_length_mm) AS avg_flipper_length_mm,
+        AVG(body_mass_g) AS avg_body_mass_g
+        
+    FROM penguins
+    WHERE sex IS NOT NULL
+    GROUP BY species, sex
+```
+
+## Задание 24
+Для улучшения производительности аналитических запросов создайте индекс с именем `island_ix` на столбце `island` таблицы `penguins`.
+```
+CREATE INDEX island_ix ON penguins(island)
+```
+## Задание 25
+Для предотвращения дубликатов создайте уникальный индекс с именем `ident_ix` на столбце `ident` таблицы `staff`.
+```
+CREATE UNIQUE INDEX ident_ix ON staff(ident)
+```
+
+## Задание 26
+Удалите таблицу `little_penguins`.
+```
+DROP TABLE little_penguins
+```
+
+## Задание 27
+Для аналитических целей мы часто запрашиваем таблицу `rental` с условиями, подобными **`DATE_FORMAT(return_date, '%Y-%m')` = 'ГГГГ-ММ'** (где 'ГГГГ-ММ' обозначает конкретный год и месяц). Для значительного улучшения производительности этих запросов создайте функциональный индекс с именем `idx_return_date_func` на столбце `return_date`, используя функцию `DATE_FORMAT`.
+```
+CREATE INDEX idx_return_date_func ON rental((DATE_FORMAT(return_date, '%Y-%m')))
+```
